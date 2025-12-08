@@ -1,0 +1,10 @@
+/usr/share/metasploit-framework/modules/auxiliary/scanner/http/manageengine_deviceexpert_user_creds.rb 
+/usr/share/metasploit-framework/modules/auxiliary/gather/checkpoint_gateway_fileread_cve_2024_24919.rb 
+/usr/share/metasploit-framework/data/exploits/openoffice_document_macro/Basic/Standard/Module1.xml 
+/usr/share/metasploit-framework/modules/auxiliary/gather/solarwinds_servu_fileread_cve_2024_28995.rb 
+/usr/lib/python3/dist-packages/google-stubs/cloud/ndb/django_middleware.pyi 
+/usr/share/texlive/texmf-dist/tex/latex/smartdiagram/smartdiagramlibrarycore.definitions.code.tex 
+/usr/share/metasploit-framework/modules/auxiliary/gather/wp_bookingpress_category_services_sqli.rb 
+/usr/lib/python3/dist-packages/networkx/algorithms/isomorphism/tests/test_temporalisomorphvf2.py 
+/usr/share/metasploit-framework/modules/payloads/singles/linux/aarch64/meterpreter_reverse_https.rb 
+/usr/share/metasploit-framework/modules/auxiliary/gather/gitlab_authenticated_subgroups_file_read.rb
