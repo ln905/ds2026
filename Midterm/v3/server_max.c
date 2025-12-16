@@ -16,27 +16,26 @@
 #define BACKLOG 10
 #define BUF_SIZE 4096
 #define MAX_CLIENTS FD_SETSIZE
-#define MAX_FILE_SIZE (10*1024*1024) // 10 MB
+#define MAX_FILE_SIZE (10*1024*1024)
 
-// --- Rate limit: tối đa CMD_WINDOW_MAX lệnh trong CMD_WINDOW_SECONDS giây ---
 #define CMD_WINDOW_SECONDS 5
 #define CMD_WINDOW_MAX     10
 
 typedef struct {
     int fd;
     int in_use;
-    int auth_stage;     // 0: need username, 1: need password, 2: done
+    int auth_stage;
     int auth_fail;
     char username[32];
-    char role[16];      // "admin" hoặc "user"
+    char role[16];
     char addr_str[64];
     int port;
     char cwd[PATH_MAX];
     int cmd_count;
 
     // Rate limiting
-    time_t window_start;   // thời điểm bắt đầu cửa sổ
-    int    window_count;   // số lệnh trong cửa sổ hiện tại
+    time_t window_start;
+    int    window_count;
 } Client;
 
 typedef struct {
@@ -101,18 +100,14 @@ int recv_message(int sock, char *buf, int max_len) {
     return (int)len;
 }
 
-
-
-
-
 /* ------------ Clients management ------------ */
-
 void init_clients() {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         clients[i].fd = -1;
         clients[i].in_use = 0;
     }
 }
+
 Client* add_client(int fd, struct sockaddr_in *addr) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (!clients[i].in_use) {
@@ -153,10 +148,6 @@ void remove_client(Client *c) {
     c->in_use = 0;
 }
 
-
-
-
-
 /* ------------ Authentication check and Security ------------ */
 const char* get_role_for_credentials(const char *user, const char *pass) {
     for (int i = 0; i < NUM_CREDS; i++) {
@@ -179,15 +170,14 @@ int is_dangerous_for_user(const char *cmd) {
     }
     return 0;
 }
+
 /* ------------ Security: rate limiting ------------ */
 int is_rate_limited(Client *c) {
     time_t now = time(NULL);
     if (now == (time_t)-1) {
-        // nếu lỗi lấy thời gian thì bỏ qua rate limit
         return 0;
     }
 
-    // nếu lần đầu hoặc đã qua cửa sổ hiện tại → reset
     if (c->window_start == 0 || now - c->window_start >= CMD_WINDOW_SECONDS) {
         c->window_start = now;
         c->window_count = 0;
@@ -210,10 +200,6 @@ int is_rate_limited(Client *c) {
     c->window_count++;
     return 0;
 }
-
-
-
-
 
 /* ------------ Features: who/stats ------------ */
 void build_who(char *out, size_t out_sz) {
@@ -245,16 +231,13 @@ void build_stats(char *out, size_t out_sz) {
              active, total_commands_executed);
 }
 
-
-
-
-
 /* ------------ Utility: trim tail whitespace ------------ */
 void trim_end(char *s) {
     int i = (int)strlen(s) - 1;
     while (i >= 0 && (s[i] == ' ' || s[i] == '\n' || s[i] == '\r' || s[i] == '\t'))
         s[i--] = '\0';
 }
+
 /* ------------ Utility: logging ------------ */
 void log_event(const char *username, const char *role, const char *addr, int port,
                const char *cwd, const char *cmd, int bytes_out) {
@@ -274,10 +257,6 @@ void log_event(const char *username, const char *role, const char *addr, int por
     fflush(log_fp);
 }
 
-
-
-
-
 /* ------------ Logic: Command execution ------------ */
 int execute_command(const char *cmd, char *out_buf, int max_len) {
     FILE *fp = popen(cmd, "r");
@@ -295,6 +274,7 @@ int execute_command(const char *cmd, char *out_buf, int max_len) {
     pclose(fp);
     return total;
 }
+
 /* ------------ Logic: File transfer helpers ------------ */
 int handle_upload_data(Client *c, const char *remote_path, long size) {
     if (size < 0 || size > MAX_FILE_SIZE) {
@@ -338,6 +318,7 @@ int handle_upload_data(Client *c, const char *remote_path, long size) {
     c->cmd_count++;
     return 0;
 }
+
 int handle_download_data(Client *c, const char *remote_path) {
     if (chdir(c->cwd) == -1) {
         send_message(c->fd, "DOWNLOAD_ERR: chdir failed.\n");
@@ -386,10 +367,6 @@ int handle_download_data(Client *c, const char *remote_path) {
     return 0;
 }
 
-
-
-
-
 /* ------------ Controller: handle main shell command ------------ */
 void handle_shell_command(Client *c, const char *cmd_in) {
     char cmd[BUF_SIZE];
@@ -404,7 +381,7 @@ void handle_shell_command(Client *c, const char *cmd_in) {
 
     // Rate limit check
     if (is_rate_limited(c)) {
-        log_event(c->username, c->role, c->addr_str, c->port,c->cwd, "RATE_LIMIT", 0);
+        log_event(c->username, c->role, c->addr_str, c->port, c->cwd, "RATE_LIMIT", 0);
         return;
     }
 
@@ -481,7 +458,7 @@ void handle_shell_command(Client *c, const char *cmd_in) {
         return;
     }
 
-    // UPLOAD (trigger từ client upload)
+    // UPLOAD
     if (strncmp(cmd, "UPLOAD ", 7) == 0) {
         char remote[PATH_MAX];
         long size;
@@ -493,7 +470,7 @@ void handle_shell_command(Client *c, const char *cmd_in) {
         return;
     }
 
-    // DOWNLOAD (trigger từ client download)
+    // DOWNLOAD
     if (strncmp(cmd, "DOWNLOAD ", 9) == 0) {
         char remote[PATH_MAX];
         if (sscanf(cmd + 9, "%s", remote) != 1) {
@@ -514,7 +491,6 @@ void handle_shell_command(Client *c, const char *cmd_in) {
             send_message(c->fd, msg);
             log_event(c->username, c->role, c->addr_str, c->port, c->cwd, cmd,
                       (int)strlen(msg));
-            // quay về cwd cũ
             chdir(c->cwd);
             return;
         }
@@ -529,7 +505,7 @@ void handle_shell_command(Client *c, const char *cmd_in) {
         return;
     }
 
-    // Lệnh shell bình thường
+    //shell
     if (strcmp(c->role, "admin") != 0 && is_dangerous_for_user(cmd)) {
         send_message(c->fd, "Permission denied: dangerous command blocked for this user.\n");
         log_event(c->username, c->role, c->addr_str, c->port, c->cwd,
@@ -555,10 +531,6 @@ void handle_shell_command(Client *c, const char *cmd_in) {
     total_commands_executed++;
     c->cmd_count++;
 }
-
-
-
-
 
 /* ------------ Main ------------ */
 int main() {
@@ -607,9 +579,9 @@ int main() {
 
     FD_ZERO(&master_set);
     FD_SET(listen_fd, &master_set);
-     = listen_fd;
+    max_fd = listen_fd;
 
-    while (1) {max_fd
+    while (1) {
         read_fds = master_set;
         if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == -1) {
             perror("select");
@@ -622,7 +594,7 @@ int main() {
             if (fd == listen_fd) {
                 // new connection
                 addr_len = sizeof(client_addr);
-                int new_fd = accept(listen_fd,(struct sockaddr *)&client_addr,&addr_len);
+                int new_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addr_len);
                 if (new_fd == -1) {
                     perror("accept");
                     continue;
@@ -636,7 +608,7 @@ int main() {
                 FD_SET(new_fd, &master_set);
                 if (new_fd > max_fd) max_fd = new_fd;
 
-                printf("New connection fd=%d from %s:%d\n",new_fd, c->addr_str, c->port);
+                printf("New connection fd=%d from %s:%d\n", new_fd, c->addr_str, c->port);
 
                 send_message(new_fd, "Enter username: ");
             } else {
@@ -700,7 +672,7 @@ int main() {
                                 remove_client(c);
                             } else {
                                 send_message(fd,
-                                    "Invalid credentials. Try again.\nEnter username: ");
+                                             "Invalid credentials. Try again.\nEnter username: ");
                                 c->auth_stage = 0;
                             }
                         }

@@ -77,14 +77,12 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // Bỏ '\n' cuối dòng
         size_t len = strlen(cmd_buf);
         if (len > 0 && cmd_buf[len - 1] == '\n') {
             cmd_buf[len - 1] = '\0';
             len--;
         }
 
-        // Gửi length + data
         uint32_t net_len = htonl(len);
         if (send_all(sockfd, &net_len, sizeof(net_len)) == -1 ||
             send_all(sockfd, cmd_buf, len) == -1) {
@@ -97,7 +95,6 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // Nhận output
         uint32_t recv_len_net;
         if (recv_all(sockfd, &recv_len_net, sizeof(recv_len_net)) == -1) {
             printf("Failed to receive result length.\n");

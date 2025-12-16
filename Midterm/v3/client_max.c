@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <limits.h>
 
-
 #define BUF_SIZE 4096
 #define MAX_FILE_SIZE (10*1024*1024)
 
@@ -61,7 +60,6 @@ void trim_end(char *s) {
 }
 
 int handle_upload_cmd(int sockfd, char *input) {
-    // format: upload localfile remotefile
     char *tok = strtok(input, " ");
     tok = strtok(NULL, " ");
     if (!tok) {
@@ -139,7 +137,6 @@ int handle_upload_cmd(int sockfd, char *input) {
 }
 
 int handle_download_cmd(int sockfd, char *input) {
-    // format: download remotefile localfile
     char *tok = strtok(input, " ");
     tok = strtok(NULL, " ");
     if (!tok) {
@@ -257,8 +254,6 @@ int main(int argc, char *argv[]) {
     printf("Connected to %s:%d\n", server_ip, port);
 
     /* ---- AUTH PHASE ---- */
-
-    // Receive "Enter username: "
     if (recv_message(sockfd, buf, sizeof(buf)) <= 0) {
         printf("Disconnected.\n");
         close(sockfd);
@@ -275,7 +270,6 @@ int main(int argc, char *argv[]) {
     trim_end(input);
     send_message(sockfd, input);
 
-    // Receive "Enter password: "
     if (recv_message(sockfd, buf, sizeof(buf)) <= 0) {
         printf("Disconnected.\n");
         close(sockfd);
@@ -290,7 +284,6 @@ int main(int argc, char *argv[]) {
     trim_end(input);
     send_message(sockfd, input);
 
-    // Receive auth result (success / fail / prompt lại)
     while (1) {
         int r = recv_message(sockfd, buf, sizeof(buf));
         if (r <= 0) {
@@ -308,7 +301,6 @@ int main(int argc, char *argv[]) {
             return 0;
         }
         if (strstr(buf, "Enter username:")) {
-            // nhập lại
             if (!fgets(input, sizeof(input), stdin)) {
                 close(sockfd);
                 return 0;
@@ -332,8 +324,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* ---- SHELL PHASE ---- */
-
+/* ---- SHELL PHASE ---- */
     while (1) {
         printf("remote-shell> ");
         fflush(stdout);

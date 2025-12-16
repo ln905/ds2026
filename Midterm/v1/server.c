@@ -13,7 +13,6 @@
 #define BACKLOG 10
 #define BUF_SIZE 4096
 
-// Hàm gửi đủ len byte
 int send_all(int sock, const void *buf, int len) {
     int total = 0;
     const char *p = buf;
@@ -25,7 +24,6 @@ int send_all(int sock, const void *buf, int len) {
     return 0;
 }
 
-// Hàm nhận đủ len byte
 int recv_all(int sock, void *buf, int len) {
     int total = 0;
     char *p = buf;
@@ -37,7 +35,6 @@ int recv_all(int sock, void *buf, int len) {
     return 0;
 }
 
-// Thực thi lệnh và ghi output vào buffer (trả về độ dài)
 int execute_command(const char *cmd, char *out_buf, int max_len) {
     FILE *fp = popen(cmd, "r");
     if (!fp) {
@@ -63,20 +60,17 @@ int main() {
 
     fd_set master_set, read_fds;
 
-    // Tạo socket
     if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
 
-    // Reuse addr
     int opt = 1;
     if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
-    // Bind
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY; // lắng nghe mọi interface
@@ -87,7 +81,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Listen
     if (listen(listen_fd, BACKLOG) == -1) {
         perror("listen");
         exit(EXIT_FAILURE);
@@ -110,7 +103,6 @@ int main() {
         for (i = 0; i <= max_fd; i++) {
             if (!FD_ISSET(i, &read_fds)) continue;
 
-            // Kết nối mới
             if (i == listen_fd) {
                 addr_len = sizeof(client_addr);
                 new_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addr_len);
@@ -127,7 +119,6 @@ int main() {
                        ntohs(client_addr.sin_port),
                        new_fd);
             } else {
-                // Nhận length
                 uint32_t net_len;
                 if (recv_all(i, &net_len, sizeof(net_len)) == -1) {
                     printf("Client fd=%d disconnected.\n", i);
@@ -157,7 +148,6 @@ int main() {
 
                 printf("Received command from fd=%d: %s\n", i, cmd_buf);
 
-                // Nếu là "exit" thì đóng client
                 if (strcmp(cmd_buf, "exit") == 0) {
                     printf("Client fd=%d requested exit.\n", i);
                     close(i);
@@ -165,11 +155,9 @@ int main() {
                     continue;
                 }
 
-                // Thực thi lệnh
                 char out_buf[BUF_SIZE * 4];
                 int out_len = execute_command(cmd_buf, out_buf, sizeof(out_buf));
 
-                // Gửi output
                 uint32_t send_len = htonl(out_len);
                 if (send_all(i, &send_len, sizeof(send_len)) == -1 ||
                     send_all(i, out_buf, out_len) == -1) {

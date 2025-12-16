@@ -19,7 +19,7 @@
 typedef struct {
     int fd;
     int in_use;
-    int auth_stage;     // 0: need username, 1: need password, 2: done
+    int auth_stage;
     int auth_fail;
     char username[32];
     char addr_str[64];
@@ -35,7 +35,7 @@ FILE *log_fp = NULL;
 
 int send_all(int sock, const void *buf, int len) {
     int total = 0;
-    const char *p = buf;
+    const char *p = (const char *)buf;
     while (total < len) {
         int n = send(sock, p + total, len - total, 0);
         if (n <= 0) return -1;
@@ -46,7 +46,7 @@ int send_all(int sock, const void *buf, int len) {
 
 int recv_all(int sock, void *buf, int len) {
     int total = 0;
-    char *p = buf;
+    char *p = (char *)buf;
     while (total < len) {
         int n = recv(sock, p + total, len - total, 0);
         if (n <= 0) return -1;
@@ -56,7 +56,7 @@ int recv_all(int sock, void *buf, int len) {
 }
 
 int send_message(int sock, const char *msg) {
-    uint32_t len = strlen(msg);
+    uint32_t len = (uint32_t)strlen(msg);
     uint32_t net_len = htonl(len);
     if (send_all(sock, &net_len, sizeof(net_len)) == -1) return -1;
     if (len > 0 && send_all(sock, msg, len) == -1) return -1;
@@ -85,9 +85,13 @@ void log_event(const char *username, const char *addr, int port,
     char tbuf[64];
     strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M:%S", localtime(&now));
     fprintf(log_fp, "[%s] %s@%s:%d cwd=\"%s\" cmd=\"%s\" bytes_out=%d\n",
-            tbuf, username ? username : "UNKNOWN",
-            addr ? addr : "?", port,
-            cwd ? cwd : "?", cmd ? cmd : "?", bytes_out);
+            tbuf,
+            username ? username : "UNKNOWN",
+            addr ? addr : "?",
+            port,
+            cwd ? cwd : "?",
+            cmd ? cmd : "?",
+            bytes_out);
     fflush(log_fp);
 }
 
@@ -97,7 +101,7 @@ int execute_command(const char *cmd, char *out_buf, int max_len) {
     FILE *fp = popen(cmd, "r");
     if (!fp) {
         snprintf(out_buf, max_len, "Failed to run command: %s\n", strerror(errno));
-        return strlen(out_buf);
+        return (int)strlen(out_buf);
     }
 
     int total = 0;
@@ -143,7 +147,6 @@ Client* add_client(int fd, struct sockaddr_in *addr) {
                       sizeof(clients[i].addr_str));
             clients[i].port = ntohs(addr->sin_port);
 
-            // Lưu cwd ban đầu của server làm cwd của client
             if (!getcwd(clients[i].cwd, sizeof(clients[i].cwd))) {
                 strcpy(clients[i].cwd, "/");
             }
@@ -158,7 +161,8 @@ void remove_client(Client *c) {
     printf("Closing connection fd=%d (%s@%s:%d)\n",
            c->fd,
            c->username[0] ? c->username : "UNKNOWN",
-           c->addr_str, c->port);
+           c->addr_str,
+           c->port);
     close(c->fd);
     c->fd = -1;
     c->in_use = 0;
@@ -174,7 +178,7 @@ void handle_shell_command(Client *c, const char *cmd_str) {
     strncpy(cmd, cmd_str, sizeof(cmd));
     cmd[sizeof(cmd) - 1] = '\0';
     // remove trailing \r\n spaces
-    for (int i = strlen(cmd) - 1; i >= 0; i--) {
+    for (int i = (int)strlen(cmd) - 1; i >= 0; i--) {
         if (cmd[i] == '\n' || cmd[i] == '\r' || cmd[i] == ' ')
             cmd[i] = '\0';
         else break;
@@ -204,7 +208,7 @@ void handle_shell_command(Client *c, const char *cmd_str) {
             "Other commands are executed on server shell.\n";
         send_message(c->fd, help_msg);
         log_event(c->username, c->addr_str, c->port, c->cwd, "help",
-                  strlen(help_msg));
+                  (int)strlen(help_msg));
         return;
     }
 
@@ -225,7 +229,7 @@ void handle_shell_command(Client *c, const char *cmd_str) {
         }
         send_message(c->fd, tmp);
         log_event(c->username, c->addr_str, c->port, c->cwd, "who",
-                  strlen(tmp));
+                  (int)strlen(tmp));
         return;
     }
 
@@ -238,12 +242,10 @@ void handle_shell_command(Client *c, const char *cmd_str) {
                      "cd: %s: %s\n", path, strerror(errno));
             send_message(c->fd, msg);
             log_event(c->username, c->addr_str, c->port, c->cwd, cmd,
-                      strlen(msg));
-            // quay về cwd cũ cho chắc
+                      (int)strlen(msg));
             chdir(c->cwd);
             return;
         }
-        // cập nhật cwd mới
         if (!getcwd(c->cwd, sizeof(c->cwd))) {
             strcpy(c->cwd, "/");
         }
@@ -251,18 +253,16 @@ void handle_shell_command(Client *c, const char *cmd_str) {
         snprintf(msg, sizeof(msg), "Current directory: %s\n", c->cwd);
         send_message(c->fd, msg);
         log_event(c->username, c->addr_str, c->port, c->cwd, cmd,
-                  strlen(msg));
+                  (int)strlen(msg));
         return;
     }
 
-    // Lệnh shell bình thường
-    // đảm bảo cwd của process = cwd client
     if (chdir(c->cwd) == -1) {
         snprintf(out_buf, sizeof(out_buf),
                  "Failed to chdir to %s: %s\n", c->cwd, strerror(errno));
         send_message(c->fd, out_buf);
         log_event(c->username, c->addr_str, c->port, c->cwd, cmd,
-                  strlen(out_buf));
+                  (int)strlen(out_buf));
         return;
     }
 
@@ -283,7 +283,6 @@ int main() {
     log_fp = fopen("server.log", "a");
     if (!log_fp) {
         perror("fopen log");
-        // không exit, chỉ là ko log được
     }
 
     init_clients();
@@ -355,12 +354,9 @@ int main() {
 
                 printf("New connection fd=%d from %s:%d\n",
                        new_fd, c->addr_str, c->port);
-
-                // Gửi prompt username
                 send_message(new_fd, "Enter username: ");
             } else {
                 /* Existing client */
-                // tìm client struct
                 Client *c = NULL;
                 for (int i = 0; i < MAX_CLIENTS; i++) {
                     if (clients[i].in_use && clients[i].fd == fd) {
@@ -369,7 +365,6 @@ int main() {
                     }
                 }
                 if (!c) {
-                    // không tìm thấy, đóng
                     close(fd);
                     FD_CLR(fd, &master_set);
                     continue;
@@ -384,15 +379,12 @@ int main() {
                 }
 
                 if (c->auth_stage < 2) {
-                    // đang trong phase auth
                     if (c->auth_stage == 0) {
-                        // nhận username
                         strncpy(c->username, buf, sizeof(c->username));
                         c->username[sizeof(c->username) - 1] = '\0';
                         c->auth_stage = 1;
                         send_message(fd, "Enter password: ");
                     } else if (c->auth_stage == 1) {
-                        // nhận password
                         char password[64];
                         strncpy(password, buf, sizeof(password));
                         password[sizeof(password) - 1] = '\0';
@@ -407,27 +399,25 @@ int main() {
                             send_message(fd, welcome);
 
                             log_event(c->username, c->addr_str, c->port,
-                                      c->cwd, "LOGIN", strlen(welcome));
+                                      c->cwd, "LOGIN", (int)strlen(welcome));
                         } else {
                             c->auth_fail++;
                             if (c->auth_fail >= 3) {
                                 send_message(fd,
-                                    "Authentication failed too many times. Bye.\n");
+                                             "Authentication failed too many times. Bye.\n");
                                 log_event(c->username, c->addr_str, c->port,
                                           c->cwd, "AUTH_FAIL", 0);
                                 FD_CLR(fd, &master_set);
                                 remove_client(c);
                             } else {
                                 send_message(fd,
-                                    "Invalid credentials. Try again.\nEnter username: ");
+                                             "Invalid credentials. Try again.\nEnter username: ");
                                 c->auth_stage = 0;
                             }
                         }
                     }
                 } else {
-                    // phase shell
                     handle_shell_command(c, buf);
-                    // chú ý: handle_shell_command có thể đã remove_client
                     if (!c->in_use) {
                         FD_CLR(fd, &master_set);
                     }
@@ -436,7 +426,7 @@ int main() {
         }
     }
 
-    fclose(log_fp);
+    if (log_fp) fclose(log_fp);
     close(listen_fd);
     return 0;
 }

@@ -85,9 +85,7 @@ int main(int argc, char *argv[]) {
 
     printf("Connected to %s:%d\n", server_ip, port);
 
-    /* ---- AUTH PHASE ---- */
-
-    // Prompt username
+/* ---- AUTH PHASE ---- */
     if (recv_message(sockfd, buf, sizeof(buf)) <= 0) {
         printf("Disconnected.\n");
         close(sockfd);
@@ -101,13 +99,12 @@ int main(int argc, char *argv[]) {
         close(sockfd);
         return 0;
     }
-    // remove newline
+
     size_t len = strlen(input);
     if (len > 0 && input[len - 1] == '\n') input[len - 1] = '\0';
 
     send_message(sockfd, input);
 
-    // Prompt password
     if (recv_message(sockfd, buf, sizeof(buf)) <= 0) {
         printf("Disconnected.\n");
         close(sockfd);
@@ -124,7 +121,6 @@ int main(int argc, char *argv[]) {
 
     send_message(sockfd, input);
 
-    // Auth result
     if (recv_message(sockfd, buf, sizeof(buf)) <= 0) {
         printf("Disconnected.\n");
         close(sockfd);
@@ -132,11 +128,8 @@ int main(int argc, char *argv[]) {
     }
     printf("%s", buf);
     if (strstr(buf, "successful") == NULL) {
-        // maybe thất bại lần 1, server sẽ gửi lại "Enter username: ..."
-        // Đơn giản: nếu không chứa "successful", tiếp tục loop recv/nhập.
         while (1) {
             if (strncmp(buf, "Authentication failed", 21) == 0) {
-                // server đóng luôn, thoát
                 close(sockfd);
                 return 0;
             }
@@ -184,8 +177,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* ---- SHELL PHASE ---- */
-
+/* ---- SHELL PHASE ---- */
     while (1) {
         printf("remote-shell> ");
         fflush(stdout);
@@ -202,7 +194,6 @@ int main(int argc, char *argv[]) {
         }
 
         if (strcmp(input, "exit") == 0) {
-            // server sẽ trả lời "Bye.\n"
             if (recv_message(sockfd, buf, sizeof(buf)) > 0) {
                 printf("%s", buf);
             }
